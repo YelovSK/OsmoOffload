@@ -11,10 +11,12 @@ screen — netsh/ipconfig otherwise pop a black window per call.
 from __future__ import annotations
 
 import asyncio
+import ctypes
 import logging
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 log = logging.getLogger("osmo.wifi")
@@ -117,7 +119,43 @@ async def is_associated(ssid: str, iface: str | None = None) -> bool:
     )
 
 
+_WLAN_IFACE_INFO_SIZE = 532  # GUID + 256 WCHAR description + state
+_SCAN_MIN_INTERVAL_S = 3.0
+_last_scan = 0.0
+
+
+def _request_scan() -> None:
+    """Ask every WLAN adapter for a fresh scan. `netsh wlan show networks` only
+    reads Windows' cached results, which can lag behind an AP that just came up."""
+    try:
+        api = ctypes.WinDLL("wlanapi")
+        handle = ctypes.c_void_p()
+        if api.WlanOpenHandle(2, None, ctypes.byref(ctypes.c_uint32()), ctypes.byref(handle)):
+            return
+        try:
+            info = ctypes.c_void_p()
+            if api.WlanEnumInterfaces(handle, None, ctypes.byref(info)):
+                return
+            try:
+                count = ctypes.c_uint32.from_address(info.value).value
+                for i in range(count):
+                    guid = (ctypes.c_ubyte * 16).from_address(
+                        info.value + 8 + _WLAN_IFACE_INFO_SIZE * i
+                    )
+                    api.WlanScan(handle, ctypes.byref(guid), None, None, None)
+            finally:
+                api.WlanFreeMemory(info)
+        finally:
+            api.WlanCloseHandle(handle, None)
+    except Exception as e:
+        log.debug("wlan scan request failed: %s", e)
+
+
 async def network_visible(ssid: str) -> bool:
+    global _last_scan
+    if time.monotonic() - _last_scan >= _SCAN_MIN_INTERVAL_S:
+        _last_scan = time.monotonic()
+        await asyncio.to_thread(_request_scan)
     _, text = await _netsh("wlan", "show", "networks")
     if _location_gated(text):
         # Cannot enumerate at all — report visible so the caller proceeds to

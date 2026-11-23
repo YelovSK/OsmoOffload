@@ -95,7 +95,9 @@ async def establish(
             if await wifi.network_visible(creds.ssid):
                 log.info("camera AP visible after %.1fs", loop.time() - t0)
                 break
-            if not nudged and loop.time() - t0 > 6:
+            # ConnectToWiFi restarts an AP that is already coming up (~15 s), so
+            # it is only a late fallback for a camera that never raises it.
+            if not nudged and loop.time() - t0 > 20:
                 try:
                     await link.request(
                         cmd.connect_to_wifi(link.next_msg_id(), creds.ssid, creds.password),
@@ -142,7 +144,7 @@ async def rejoin_ap(link: BleLink, creds: WifiCredentials) -> bool:
     while loop.time() - t0 < 30:
         if await wifi.network_visible(creds.ssid):
             break
-        if not nudged and loop.time() - t0 > 3:
+        if not nudged and loop.time() - t0 > 10:
             try:
                 await link.request(
                     cmd.connect_to_wifi(link.next_msg_id(), creds.ssid, creds.password),
