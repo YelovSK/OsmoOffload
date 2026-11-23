@@ -70,13 +70,13 @@ def wifi_prepare(msg_id: int) -> DumlFrame:
     return _req(ADDR_WIFI, msg_id, 0x07, 0x48, bytes([0x00]))
 
 
-def set_pairing_pin(msg_id: int, identifier: str, token: str = "osmo") -> DumlFrame:
+def set_pairing_pin(msg_id: int, identifier: str, token: str = "1646") -> DumlFrame:
     """0x07/0x45 -> WiFi. Reply payload: 00 01 already-paired / 00 02 approval.
 
     `identifier` is what the camera remembers the approval under — mint one
     per install, persist it, and NEVER vary it between retries.
     """
-    return _req(ADDR_WIFI, msg_id, 0x07, 0x45, pack_string(identifier) + pack_string(token))
+    return _req(ADDR_WIFI, msg_id, 0x07, 0x45, pack_string(identifier) + pack_string(token) + bytes([0x01, 0x01]))
 
 
 def pairing_approval_ack(msg_id: int) -> DumlFrame:

@@ -43,7 +43,7 @@ def save_state(state: dict[str, Any]) -> None:
 def get_identifier(state: dict[str, Any]) -> str:
     ident = state.get("identifier")
     if not ident:
-        ident = secrets.token_hex(16)  # 32 hex chars, the shape DJI apps use
+        ident = f"{secrets.randbelow(10**15):015d}"  # 15 digits, the shape Mimo sends
         state["identifier"] = ident
         save_state(state)
     return ident
