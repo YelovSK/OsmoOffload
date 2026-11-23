@@ -6,7 +6,7 @@ Sliding-window sequenced transport. The load-bearing subtlety (two osmosis
 regressions): the routing header's ackSeq and ownSeq BOTH live in the app's
 own command-seq space — ackSeq = ownSeq - 8, never the camera's telemetry seq.
 Get it wrong and the receive window silently drops writes while reads still
-work. Our own send seq advances +8 per packet, starting at camera_channel + 8.
+work. Our own send seq advances +8 per packet, starting at our proposed base + 8.
 """
 
 from __future__ import annotations
@@ -183,8 +183,8 @@ class DatalinkTransport:
                   attempts, got_any)
         return None
 
-    def sync_seq_to_channel(self) -> None:
-        self._udp_seq = (self.cam_channel + 8) & 0xFFFF
+    def start_seq(self) -> None:
+        self._udp_seq = (self.base_seq + 8) & 0xFFFF
 
     # -- acks & commands -----------------------------------------------------
 

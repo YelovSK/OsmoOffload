@@ -158,7 +158,10 @@ class CameraDatalink:
             self.tx.send_ack()
             if i >= 1 and self.tx.cam_channel != self.tx.base_seq:
                 break
-        self.tx.sync_seq_to_channel()
+        # Continue our own sequence even when the camera's channel field has
+        # run ahead of it: commands sent at channel+8 on such a session were
+        # never answered.
+        self.tx.start_seq()
         log.info(
             "session=0x%04x base=0x%04x channel=0x%04x",
             self.tx.session_id, self.tx.base_seq, self.tx.cam_channel,

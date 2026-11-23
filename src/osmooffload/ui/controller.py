@@ -743,12 +743,12 @@ class CameraController(QObject):
             try:
                 if not dl.open():
                     continue
-                if dl.channel_mismatch and attempt < len(candidates):
-                    # A mismatched session never answers the list; a fresh
-                    # handshake lands clean, so don't spend seconds on this one.
-                    continue
                 dl.register()
                 dl.enter_playback()
+                if dl.channel_mismatch and not dl.playback_reported and attempt < len(candidates):
+                    # the camera ignored us on this session; a fresh handshake lands clean
+                    log.info("mismatched session ignored playback — reopening")
+                    continue
                 records, raw = dl.query_newest_page()
                 last_status = dl.status
                 if records or mf.list_answered(raw):
