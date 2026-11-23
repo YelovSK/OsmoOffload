@@ -35,6 +35,18 @@ PARAM_SUBS = [
 ]
 
 
+def _stores_complete(raw: bytes) -> bool:
+    """True once the internal-store query (sent last) has answered and every
+    answered store slice holds as many records as its manifest header says."""
+    if not mf.reassemble(raw, request_ctr=INTERNAL_QUERY_CTR):
+        return False
+    for ctr in (SD_QUERY_CTR, INTERNAL_QUERY_CTR):
+        buf = mf.reassemble(raw, request_ctr=ctr)
+        if buf and len(mf.decode(buf)) < mf.header_count(buf):
+            return False
+    return True
+
+
 def list_cmd(ctr: int, cursor: int) -> bytes:
     p = bytearray(LIST_BASE)
     p[4] = ctr
@@ -383,40 +395,57 @@ class CameraDatalink:
 
     # -- media list ----------------------------------------------------------
 
+    LIST_SEND_GAP_S = 0.25
+    LIST_SLICE_S = 0.2
+    LIST_UNANSWERED_S = 3.2
+    LIST_STABLE_S = 1.6
+    LIST_MAX_S = 12.0
+
     def query_newest_page(self) -> tuple[list[mf.MediaRecord], bytes]:
-        """The proven 3-command newest-page sequence. Returns (records, raw_blob)."""
+        """The 3-command newest-page sequence. Returns (records, raw_blob).
+
+        Ends as soon as every store slice that answered holds as many records
+        as its header announces; otherwise once the count stops changing."""
         with self._io_lock:
             blob = bytearray()
-            self.tx.send_duml(0x00, 0x26, list_cmd(SD_QUERY_CTR, 1), receiver_type=0x01, receiver_id=0)
-            last_count = -1
-            stable = 0
-            for batch in range(15):
-                got = self.tx.recv_all(0.8)
+            t0 = time.monotonic()
+
+            def pump(duration: float) -> None:
+                got = self.tx.recv_all(duration)
                 for r in got:
-                    blob += r
+                    blob.extend(r)
                 self._parse_status(got)
                 self.tx.send_ack()
-                self.presence_beat()
-                if batch == 1:
-                    self.tx.send_duml(0x00, 0x26, LIST_TRIGGER, receiver_type=0x01, receiver_id=0)
-                if batch == 2:
-                    self.tx.send_duml(0x00, 0x26, list_cmd(INTERNAL_QUERY_CTR, NEWEST_SENTINEL),
-                                      receiver_type=0x01, receiver_id=0)
-                if batch == 4 and not mf.list_answered(bytes(blob)):
+
+            for payload in (list_cmd(SD_QUERY_CTR, 1), LIST_TRIGGER,
+                            list_cmd(INTERNAL_QUERY_CTR, NEWEST_SENTINEL)):
+                self.tx.send_duml(0x00, 0x26, payload, receiver_type=0x01, receiver_id=0)
+                pump(self.LIST_SEND_GAP_S)
+
+            last_count = -1
+            last_change = time.monotonic()
+            last_beat = 0.0
+            while (now := time.monotonic()) - t0 < self.LIST_MAX_S:
+                if now - last_beat >= 0.8:
+                    self.presence_beat()
+                    last_beat = now
+                pump(self.LIST_SLICE_S)
+                raw = bytes(blob)
+                if now - t0 >= self.LIST_UNANSWERED_S and not mf.list_answered(raw):
                     # not a single 0x00/0x27 frame: dead/stale session —
-                    # fail fast so the caller can re-handshake (saves ~8 s)
-                    log.warning("list unanswered after %d batches — bailing early", batch + 1)
+                    # fail fast so the caller can re-handshake
+                    log.warning("list unanswered after %.1fs — bailing early", now - t0)
                     break
-                count = len(mf.decode(mf.reassemble(bytes(blob))))
+                count = len(mf.decode(mf.reassemble(raw)))
                 if count != last_count:
-                    log.info("list: %d files (batch %d, blob %d B)", count, batch, len(blob))
-                if batch >= 4 and count > 0 and count == last_count:
-                    stable += 1
-                    if stable >= 2:
-                        break
-                else:
-                    stable = 0
-                last_count = count
+                    log.info("list: %d files (%.1fs, blob %d B)", count, now - t0, len(blob))
+                    last_count = count
+                    last_change = now
+                if _stores_complete(raw):
+                    log.info("list complete per store headers after %.1fs", now - t0)
+                    break
+                if count > 0 and now - last_change >= self.LIST_STABLE_S:
+                    break
             raw = bytes(blob)
             return self._collect_stores(raw), raw
 
