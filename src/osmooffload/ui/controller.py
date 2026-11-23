@@ -740,6 +740,10 @@ class CameraController(QObject):
             try:
                 if not dl.open():
                     continue
+                if dl.channel_mismatch and attempt < len(candidates):
+                    # A mismatched session never answers the list; a fresh
+                    # handshake lands clean, so don't spend seconds on this one.
+                    continue
                 dl.register()
                 dl.enter_playback()
                 records, raw = dl.query_newest_page()
