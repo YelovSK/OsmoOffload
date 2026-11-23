@@ -79,6 +79,14 @@ async def pair_and_get_credentials(
     # 4. keepalive from here on (camera drops an idle link after ~5-6 s)
     link.start_keepalive(cmd.session_keepalive, interval=1.0)
 
+    # 4b. same pre-credential commands the official app sends
+    for build in (cmd.wifi_work_mode, cmd.wifi_prepare):
+        try:
+            r = await link.request(build(link.next_msg_id()), timeout=2.0)
+            log.info("%s reply: %s", build.__name__, r.payload.hex())
+        except asyncio.TimeoutError:
+            log.info("%s: no reply (non-fatal)", build.__name__)
+
     # 5. wake — a Pocket 3 answers e0 yet wakes anyway; treat all outcomes as ok
     try:
         wreply = await link.request(cmd.wake(link.next_msg_id()), timeout=2.5)

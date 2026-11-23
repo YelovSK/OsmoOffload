@@ -58,6 +58,18 @@ def wake(msg_id: int) -> DumlFrame:
     return _req(ADDR_WAKE, msg_id, 0x53, 0x10, bytes(4))
 
 
+def wifi_work_mode(msg_id: int) -> DumlFrame:
+    """0x07/0x39 `04` -> WiFi. Sent by the official app before reading credentials;
+    exact meaning unconfirmed (a never-activated camera answers e0)."""
+    return _req(ADDR_WIFI, msg_id, 0x07, 0x39, bytes([0x04]))
+
+
+def wifi_prepare(msg_id: int) -> DumlFrame:
+    """0x07/0x48 `00` -> WiFi. Sent by the official app right after the session
+    keepalive starts and before the credential reads; exact meaning unconfirmed."""
+    return _req(ADDR_WIFI, msg_id, 0x07, 0x48, bytes([0x00]))
+
+
 def set_pairing_pin(msg_id: int, identifier: str, token: str = "osmo") -> DumlFrame:
     """0x07/0x45 -> WiFi. Reply payload: 00 01 already-paired / 00 02 approval.
 
