@@ -409,7 +409,7 @@ class CameraDatalink:
                     log.info("list: %d files (batch %d, blob %d B)", count, batch, len(blob))
                 if batch >= 4 and count > 0 and count == last_count:
                     stable += 1
-                    if stable >= 1:
+                    if stable >= 2:
                         break
                 else:
                     stable = 0
