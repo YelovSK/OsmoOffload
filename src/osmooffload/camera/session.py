@@ -152,10 +152,12 @@ class CameraDatalink:
             self.tx.close()
             return False
         log.info("handshake OK on udp/%d", self.port)
-        for _ in range(5):
-            got = self.tx.recv_all(0.4)
+        for i in range(4):
+            got = self.tx.recv_all(0.3)
             self._parse_status(got)
             self.tx.send_ack()
+            if i >= 1 and self.tx.cam_channel != self.tx.base_seq:
+                break
         self.tx.sync_seq_to_channel()
         log.info(
             "session=0x%04x base=0x%04x channel=0x%04x",
@@ -176,14 +178,14 @@ class CameraDatalink:
 
     def register(self) -> None:
         self.tx.send_duml(0x00, 0x81, device_info_payload(), receiver_type=0x08, receiver_id=2, cmd_type=4)
-        self._drain(0.2)
+        self._drain(0.1)
         self.tx.send_duml(0x00, 0x88, APP_PRESENCE, receiver_type=0x08, receiver_id=1)
-        self._drain(0.2)
+        self._drain(0.1)
         self.tx.send_duml(0x03, 0xDA, bytes.fromhex("05ffffffff"), receiver_type=0x03, receiver_id=0)
-        self._drain(0.2)
+        self._drain(0.1)
         for i, name in enumerate(PARAM_SUBS):
             self.tx.send_duml(0x00, 0x99, subscription_payload(name, i + 1), receiver_type=0x08, receiver_id=1)
-            self._drain(0.08)
+            self._drain(0.04)
         self._registered_at = time.monotonic()
         log.info("registered (devinfo + presence + gimbal init + %d subs)", len(PARAM_SUBS))
 
@@ -407,7 +409,7 @@ class CameraDatalink:
                     log.info("list: %d files (batch %d, blob %d B)", count, batch, len(blob))
                 if batch >= 4 and count > 0 and count == last_count:
                     stable += 1
-                    if stable >= 2:
+                    if stable >= 1:
                         break
                 else:
                     stable = 0

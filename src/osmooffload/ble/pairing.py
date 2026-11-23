@@ -87,27 +87,24 @@ async def pair_and_get_credentials(
         except asyncio.TimeoutError:
             log.info("%s: no reply (non-fatal)", build.__name__)
 
-    # 5. wake — a Pocket 3 answers e0 yet wakes anyway; treat all outcomes as ok
-    try:
-        wreply = await link.request(cmd.wake(link.next_msg_id()), timeout=2.5)
-        log.info("wake reply: %s", wreply.payload.hex())
-    except asyncio.TimeoutError:
-        log.info("wake: no reply (non-fatal)")
+    # 5. wake — fire and forget: a Pocket 4 never answers and a Pocket 3 answers
+    # e0 yet wakes anyway, so waiting for the reply only costs time
+    await link.send(cmd.wake(link.next_msg_id()))
 
-    # 6. credentials, paced
-    await asyncio.sleep(0.5)
+    # 6. credentials
+    await asyncio.sleep(0.1)
     ssid_reply = await link.request_retry(cmd.get_wifi_ssid, timeout=3.0)
     _, ssid = cmd.parse_packed_string_reply(ssid_reply.payload)
     log.info("SSID: %s", ssid)
 
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.1)
     pass_reply = await link.request_retry(cmd.get_wifi_password, timeout=3.0)
     _, password = cmd.parse_packed_string_reply(pass_reply.payload)
     log.info("password: (len %d)", len(password))
 
     mac = None
     try:
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.1)
         mac_reply = await link.request_retry(cmd.get_wifi_mac, timeout=3.0, attempts=2)
         if len(mac_reply.payload) >= 7:
             mac = ":".join(f"{b:02x}" for b in mac_reply.payload[1:7])
