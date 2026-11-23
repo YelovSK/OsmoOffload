@@ -645,6 +645,7 @@ class MainWindow(QWidget):
     cancel_requested = Signal()
     settings_saved = Signal(dict)
     camera_selected = Signal(str)
+    add_camera_requested = Signal()
 
     def __init__(self, settings: dict, parent: QWidget | None = None):
         super().__init__(parent)
@@ -671,6 +672,10 @@ class MainWindow(QWidget):
             lambda it: self.camera_selected.emit(it.data(Qt.ItemDataRole.UserRole))
         )
         rail_l.addWidget(self.camera_list, 1)
+        self.btn_add_camera = QPushButton("+ Add camera")
+        self.btn_add_camera.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_add_camera.clicked.connect(self.add_camera_requested)
+        rail_l.addWidget(self.btn_add_camera)
         rail_l.addWidget(Legend())
         root.addWidget(rail)
 

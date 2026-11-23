@@ -40,17 +40,26 @@ def save_state(state: dict[str, Any]) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
 
+def update_state(**fields: Any) -> dict[str, Any]:
+    """Merge fields into the file as it is now. The UI and the camera worker
+    both write state, so never save a copy loaded earlier."""
+    state = load_state()
+    state.update(fields)
+    save_state(state)
+    return state
+
+
 def get_identifier(state: dict[str, Any]) -> str:
     ident = state.get("identifier")
     if not ident:
         ident = f"{secrets.randbelow(10**15):015d}"  # 15 digits, the shape Mimo sends
         state["identifier"] = ident
-        save_state(state)
+        update_state(identifier=ident)
     return ident
 
 
 def remember_camera(state: dict[str, Any], address: str, **fields: Any) -> None:
-    cams = state.setdefault("cameras", {})
-    cam = cams.setdefault(address, {})
-    cam.update({k: v for k, v in fields.items() if v is not None})
-    save_state(state)
+    cams = load_state().get("cameras", {})
+    cams.setdefault(address, {}).update({k: v for k, v in fields.items() if v is not None})
+    state["cameras"] = cams
+    update_state(cameras=cams)

@@ -168,6 +168,9 @@ class CameraController(QObject):
         confirmed (twice, for never-transferred files)."""
         self._submit(self._delete_session(set(names)))
 
+    def add_camera(self) -> None:
+        self._submit(self._add_camera_session())
+
     def usb_ingest(self) -> None:
         self._submit(self._usb_session())
 
@@ -276,7 +279,7 @@ class CameraController(QObject):
         dur = time.monotonic() - t0
         avg = float(state.get("connect_avg_s", dur))
         state["connect_avg_s"] = round(0.7 * avg + 0.3 * dur, 1)
-        config.save_state(state)
+        config.update_state(connect_avg_s=state["connect_avg_s"])
         log.info("connect took %.1fs (rolling avg now %.1fs)", dur, state["connect_avg_s"])
         return link, creds, target, None
 
@@ -459,6 +462,21 @@ class CameraController(QObject):
         return plan
 
     # -- WiFi session (refresh / transfer) -----------------------------------
+
+    async def _add_camera_session(self) -> None:
+        """Pair a camera that isn't saved yet, then make it the active one."""
+        known = {a.lower() for a in config.load_state().get("cameras", {})}
+        self.state_changed.emit("connecting", "Looking for a new camera…")
+        found = await conn.find_new_camera(known)
+        log.info("adding camera: %s (%s)", found.model_name, found.address)
+        previous = self.active_address
+        self.active_address = found.address
+        try:
+            await self._session(transfer=False)
+        except BaseException:
+            self.active_address = previous
+            raise
+        config.update_state(active_camera=found.address)
 
     async def _session(self, transfer: bool, selected: set | None = None) -> None:
         from ..camera import manifest as mf

@@ -41,21 +41,21 @@ class OsmoApp:
         self.qt.setStyleSheet(theme.QSS)
         self.qt.setApplicationName("Osmo Offload")
 
-        self.state = config.load_state()
+        state = config.load_state()
         self.settings = {
-            "base_dir": self.state.get("base_dir", r"D:\DJI-Offload"),
-            "template": self.state.get("template", "{original}"),
-            "folder_template": self.state.get("folder_template", naming.DEFAULT_FOLDER_TEMPLATE),
-            "tray_mode": self.state.get("tray_mode", True),
-            "start_minimized": self.state.get("start_minimized", False),
-            "auto_transfer": self.state.get("auto_transfer", False),
-            "keep_awake": self.state.get("keep_awake", True),
-            "kinds_video": self.state.get("kinds_video", True),
-            "kinds_photo": self.state.get("kinds_photo", True),
-            "write_reports": self.state.get("write_reports", True),
-            "open_folder": self.state.get("open_folder", False),
-            "hook_cmd": self.state.get("hook_cmd", ""),
-            "update_repo": self.state.get("update_repo") or "intermittech/OsmoOffload",
+            "base_dir": state.get("base_dir", r"D:\DJI-Offload"),
+            "template": state.get("template", "{original}"),
+            "folder_template": state.get("folder_template", naming.DEFAULT_FOLDER_TEMPLATE),
+            "tray_mode": state.get("tray_mode", True),
+            "start_minimized": state.get("start_minimized", False),
+            "auto_transfer": state.get("auto_transfer", False),
+            "keep_awake": state.get("keep_awake", True),
+            "kinds_video": state.get("kinds_video", True),
+            "kinds_photo": state.get("kinds_photo", True),
+            "write_reports": state.get("write_reports", True),
+            "open_folder": state.get("open_folder", False),
+            "hook_cmd": state.get("hook_cmd", ""),
+            "update_repo": state.get("update_repo") or "intermittech/OsmoOffload",
         }
 
         self.icon = make_icon()
@@ -91,7 +91,7 @@ class OsmoApp:
             # opening the app interactively = the user wants to see the camera:
             # connect right away (not when boot-started minimized to tray)
             if not (self.settings.get("tray_mode") and self.settings.get("start_minimized")):
-                if self.state.get("cameras"):
+                if config.load_state().get("cameras"):
                     QTimer.singleShot(900, self._auto_open_refresh)
 
     def _auto_open_refresh(self) -> None:
@@ -115,6 +115,7 @@ class OsmoApp:
         w.settings_tab.check_update.connect(self._check_update_loud)
         w.refresh_requested.connect(c.refresh)
         w.camera_selected.connect(self._on_camera_selected)
+        w.add_camera_requested.connect(c.add_camera)
         w.cancel_requested.connect(c.cancel)
         self.act_transfer.triggered.connect(c.transfer)
 
@@ -134,12 +135,7 @@ class OsmoApp:
         c.error.connect(lambda msg: self._toast("Osmo Offload", msg, error=True))
         c.log_line.connect(w.status_line.setText)
 
-        saved = self.state.get("cameras", {})
-        w.set_cameras(
-            [(addr, cam.get("model_name") or cam.get("ssid") or addr, False)
-             for addr, cam in saved.items()],
-            selected=self._active_address(),
-        )
+        self._show_cameras(live=False)
         w.card.title.setText(self._active_label())
         self._reload_history()
 
@@ -160,13 +156,7 @@ class OsmoApp:
         w.card.set_busy(busy, transferring=(state == "transferring"))
         w.media.set_busy(busy)
         # camera list dot: in-range while a session is live
-        saved = self.state.get("cameras", {})
-        w.set_cameras(
-            [(addr, cam.get("model_name") or cam.get("ssid") or addr,
-              state in ("connecting", "connected", "transferring"))
-             for addr, cam in saved.items()],
-            selected=self._active_address(),
-        )
+        self._show_cameras(live=state in ("connecting", "connected", "transferring"))
         # the header must name the camera we are actually talking to, not
         # whichever one happens to be first in the saved dict
         w.card.title.setText(self._active_label())
@@ -202,11 +192,17 @@ class OsmoApp:
             self._conn_timer.stop()
 
     def _on_camera_seen(self, present: bool) -> None:
-        saved = self.state.get("cameras", {})
+        self._show_cameras(live=present)
+
+    def _show_cameras(self, live: bool) -> None:
+        """Rebuild the sidebar from saved state; only the active camera can be live."""
+        active = self._active_address()
+        saved = config.load_state().get("cameras", {})
         self.window.set_cameras(
-            [(addr, cam.get("model_name") or cam.get("ssid") or addr, present)
+            [(addr, cam.get("model_name") or cam.get("ssid") or addr,
+              live and addr.lower() == (active or "").lower())
              for addr, cam in saved.items()],
-            selected=self._active_address(),
+            selected=active,
         )
 
     def _on_status(self, st: dict) -> None:
@@ -233,7 +229,8 @@ class OsmoApp:
             self.window.update_file_progress(name, done, total, "done")
 
     def _maybe_wizard(self) -> None:
-        if self.state.get("wizard_done") or self.state.get("cameras"):
+        state = config.load_state()
+        if state.get("wizard_done") or state.get("cameras"):
             return
         from .wizard import FirstRunWizard
 
@@ -241,10 +238,7 @@ class OsmoApp:
         wiz.setWindowIcon(self.icon)
         wiz.pair_requested.connect(lambda: self.controller and self.controller.refresh())
         wiz.exec()
-        self.state.update(
-            base_dir=self.settings.get("base_dir"), wizard_done=True
-        )
-        config.save_state(self.state)
+        config.update_state(base_dir=self.settings.get("base_dir"), wizard_done=True)
 
     # -- update check --------------------------------------------------------
 
@@ -429,12 +423,12 @@ class OsmoApp:
         """The camera the app is actually working with."""
         if self.controller and self.controller.active_address:
             return self.controller.active_address
-        saved = self.state.get("cameras", {})
-        return self.state.get("active_camera") or next(iter(saved), None)
+        state = config.load_state()
+        return state.get("active_camera") or next(iter(state.get("cameras", {})), None)
 
     def _active_label(self) -> str:
         addr = self._active_address()
-        saved = {a.lower(): c for a, c in self.state.get("cameras", {}).items()}
+        saved = {a.lower(): c for a, c in config.load_state().get("cameras", {}).items()}
         cam = saved.get((addr or "").lower(), {})
         return cam.get("model_name") or cam.get("ssid") or addr or "Camera"
 
@@ -443,10 +437,9 @@ class OsmoApp:
         if not self.controller or address == self.controller.active_address:
             return
         self.controller.active_address = address
-        self.state["active_camera"] = address
-        config.save_state(self.state)
+        config.update_state(active_camera=address)
 
-        cam = {a.lower(): c for a, c in self.state.get("cameras", {}).items()}.get(
+        cam = {a.lower(): c for a, c in config.load_state().get("cameras", {}).items()}.get(
             address.lower(), {}
         )
         label = cam.get("model_name") or cam.get("ssid") or address
@@ -464,8 +457,7 @@ class OsmoApp:
 
     def _on_settings_saved(self, settings: dict) -> None:
         self.settings.update(settings)
-        self.state.update(settings)
-        config.save_state(self.state)
+        config.update_state(**settings)
         if self.controller:
             self.controller.settings = self.settings
         self.window.status_line.setText("Settings saved")

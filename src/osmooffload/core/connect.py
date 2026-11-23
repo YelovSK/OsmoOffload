@@ -53,6 +53,19 @@ async def find_camera(address: str | None, scans: int = 3, scan_time: float = 12
     )
 
 
+async def find_new_camera(known: set[str], scans: int = 3, scan_time: float = 8.0):
+    """Strongest DJI camera in range that isn't one of the `known` addresses."""
+    for attempt in range(scans):
+        found = [c for c in await scanner.scan(scan_time) if c.address.lower() not in known]
+        if found:
+            # an identified camera model beats other DJI gear that happens to advertise
+            return min(found, key=lambda c: (c.model_id is None, -c.rssi))
+        log.info("no new camera seen (scan %d/%d)...", attempt + 1, scans)
+    raise ConnectError(
+        "No new camera found over Bluetooth. Is it powered on and close to the PC?"
+    )
+
+
 async def establish(
     state: dict,
     address: str | None = None,
