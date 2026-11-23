@@ -70,6 +70,7 @@ class CameraController(QObject):
         # instead of whichever camera happens to be first in the saved dict.
         self.active_address: str | None = config.load_state().get("active_camera")
         self._busy = False
+        self._job: asyncio.Task | None = None
         self._cancel = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._last_session_end = 0.0
@@ -119,6 +120,7 @@ class CameraController(QObject):
         root.addHandler(handler)
 
         async def wrapped():
+            self._job = asyncio.current_task()
             try:
                 await coro
             except conn.ConnectError as e:
@@ -131,6 +133,7 @@ class CameraController(QObject):
                 self.state_changed.emit("error", f"{type(e).__name__}: {e}")
                 self.error.emit(f"{type(e).__name__}: {e}")
             finally:
+                self._job = None
                 self._busy = False
                 self._last_session_end = time.monotonic()
                 _keep_awake(False)
@@ -138,6 +141,27 @@ class CameraController(QObject):
                 handler.close()
 
         asyncio.run_coroutine_threadsafe(wrapped(), self._loop)
+
+    def switch_camera(self, address: str) -> bool:
+        """Make `address` the active camera and connect to it. A connect still
+        looking for the previous camera is abandoned; any other running job
+        finishes first. Returns whether the switch happens now."""
+        self.active_address = address
+        now = not self._busy or self._in_connect
+        asyncio.run_coroutine_threadsafe(self._switch_camera(), self._loop)
+        return now
+
+    async def _switch_camera(self) -> None:
+        job = self._job
+        if job and self._in_connect:
+            log.info("abandoning the connect in progress to switch cameras")
+            job.cancel()
+            try:
+                await job
+            except BaseException:
+                pass
+        if not self._busy:
+            self.refresh()
 
     def cancel(self) -> None:
         self._cancel = True

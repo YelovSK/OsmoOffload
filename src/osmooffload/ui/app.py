@@ -437,7 +437,6 @@ class OsmoApp:
         """Switch the app to the camera the user clicked in the sidebar."""
         if not self.controller or address == self.controller.active_address:
             return
-        self.controller.active_address = address
         config.update_state(active_camera=address)
 
         cam = {a.lower(): c for a, c in config.load_state().get("cameras", {}).items()}.get(
@@ -448,13 +447,12 @@ class OsmoApp:
         self.window.card.title.setText(label)
         log.info("active camera set to %s (%s)", address, label)
 
-        if self.controller.busy:
+        if self.controller.switch_camera(address):
+            self.window.status_line.setText(f"Switching to {label}…")
+        else:
             self.window.status_line.setText(
                 f"{label} selected — finishing the current job first"
             )
-        else:
-            self.window.status_line.setText(f"Switching to {label}…")
-            self.controller.refresh()
 
     def _on_settings_saved(self, settings: dict) -> None:
         self.settings.update(settings)
