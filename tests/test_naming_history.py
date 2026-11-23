@@ -11,16 +11,16 @@ def test_parse_dji_name():
     assert p.ext == "MP4" and p.is_video and p.kind == "video"
     assert p.timestamp is not None and p.timestamp.year == 2026
     assert p.seq == "0012"
-    assert naming.date_folder(p) == "2026-08-20"
+    assert naming.folder_parts("{date}", p, "cam", "x") == ["2026-08-20"]
 
 
 def test_parse_custom_and_photo():
     p = naming.parse_name("DJI_20251231235959_0001_D.JPG")
     assert p.kind == "photo"
-    assert naming.date_folder(p) == "2025-12-31"
+    assert naming.folder_parts("{date}", p, "cam", "x") == ["2025-12-31"]
     q = naming.parse_name("WEIRD_NAME.MP4")
     assert q.timestamp is None
-    assert naming.date_folder(q) == "undated"
+    assert naming.folder_parts("{date}", q, "cam", "x") == ["undated"]
 
 
 def test_template():

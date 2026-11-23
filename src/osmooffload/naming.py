@@ -60,10 +60,6 @@ def parse_name(name: str) -> ParsedName:
     return ParsedName(base=base, ext=ext.upper(), timestamp=ts, seq=sm.group(1) if sm else None)
 
 
-def date_folder(parsed: ParsedName) -> str:
-    return parsed.timestamp.strftime("%Y-%m-%d") if parsed.timestamp else "undated"
-
-
 def _render(template: str, parsed: ParsedName, camera: str, original: str) -> str:
     ts = parsed.timestamp
     values = {
