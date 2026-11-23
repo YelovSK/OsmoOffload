@@ -21,7 +21,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 
-from .. import config
+from .. import config, naming
 from ..camera.session import CameraDatalink, datalink_configs
 from ..core import connect as conn
 from ..core.offload import OffloadConfig, Offloader, SessionProgress
@@ -366,6 +366,7 @@ class CameraController(QObject):
             base_dir=Path(self.settings.get("base_dir", r"D:\DJI-Offload")),
             camera_folder=cam_folder,
             template=self.settings.get("template", "{original}"),
+            folder_template=self.settings.get("folder_template", naming.DEFAULT_FOLDER_TEMPLATE),
             kinds=tuple(kinds),
             log_path=getattr(self, "current_log_path", None),
         )

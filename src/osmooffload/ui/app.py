@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import config
+from .. import config, naming
 from . import theme
 from .main_window import MainWindow, human_size
 
@@ -45,6 +45,7 @@ class OsmoApp:
         self.settings = {
             "base_dir": self.state.get("base_dir", r"D:\DJI-Offload"),
             "template": self.state.get("template", "{original}"),
+            "folder_template": self.state.get("folder_template", naming.DEFAULT_FOLDER_TEMPLATE),
             "tray_mode": self.state.get("tray_mode", True),
             "start_minimized": self.state.get("start_minimized", False),
             "auto_transfer": self.state.get("auto_transfer", False),

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import naming
 from . import theme
 from .widgets import AnimatedBar, BatteryRow, StorageBar
 
@@ -522,6 +523,19 @@ class SettingsTab(QWidget):
         h2.addWidget(self.template, 1)
         root.addLayout(h2)
 
+        h3 = QHBoxLayout()
+        lab3 = QLabel("Folder layout")
+        lab3.setMinimumWidth(180)
+        self.folder_template = QLineEdit(
+            settings.get("folder_template", naming.DEFAULT_FOLDER_TEMPLATE)
+        )
+        self.folder_template.setPlaceholderText(
+            f"e.g. {{year}}/{{month}}-{{day}}  ·  empty = straight into the base folder"
+        )
+        h3.addWidget(lab3)
+        h3.addWidget(self.folder_template, 1)
+        root.addLayout(h3)
+
         self.tray_mode = QCheckBox("Run as tray program (closing the window hides to tray)")
         self.tray_mode.setChecked(bool(settings.get("tray_mode", True)))
         root.addWidget(self.tray_mode)
@@ -608,6 +622,7 @@ class SettingsTab(QWidget):
         self._settings.update(
             base_dir=self.base_dir.text().strip().replace("/", "\\"),
             template=self.template.text().strip() or "{original}",
+            folder_template=self.folder_template.text().strip().replace("\\", "/"),
             tray_mode=self.tray_mode.isChecked(),
             start_minimized=self.start_minimized.isChecked(),
             auto_transfer=self.auto_transfer.isChecked(),
