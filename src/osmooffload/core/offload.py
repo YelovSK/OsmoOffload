@@ -26,7 +26,7 @@ class OffloadConfig:
     camera_folder: str
     template: str = "{original}"
     kinds: tuple[str, ...] = ("video", "photo", "other")
-    split_kind_folders: bool = True
+    folder_template: str = naming.DEFAULT_FOLDER_TEMPLATE
     log_path: str | None = None  # session log file, recorded in history
 
 
@@ -68,9 +68,7 @@ class Offloader:
     def _dest_for(self, rec: MediaRecord) -> Path:
         parsed = naming.parse_name(rec.name)
         out_name = naming.apply_template(self.cfg.template, parsed, self.cfg.camera_folder, rec.name)
-        parts = [naming._sanitize(self.cfg.camera_folder), naming.date_folder(parsed)]
-        if self.cfg.split_kind_folders:
-            parts.append(parsed.kind)
+        parts = naming.folder_parts(self.cfg.folder_template, parsed, self.cfg.camera_folder, rec.name)
         return self.cfg.base_dir.joinpath(*parts, out_name)
 
     def plan(self, records: list[MediaRecord]) -> list[PlanItem]:

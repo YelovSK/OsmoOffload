@@ -15,6 +15,8 @@ from datetime import datetime
 _TS_RE = re.compile(r"(\d{14})")  # YYYYMMDDHHMMSS anywhere in the name
 _SEQ_RE = re.compile(r"_(\d{4})(?:_|\.|$)")
 
+DEFAULT_FOLDER_TEMPLATE = "{camera}/{date}/{kind}"
+
 PHOTO_EXTS = {"JPG", "JPEG", "DNG", "RAW", "HEIF", "HEIC"}
 VIDEO_EXTS = {"MP4", "MOV"}
 
@@ -62,16 +64,14 @@ def date_folder(parsed: ParsedName) -> str:
     return parsed.timestamp.strftime("%Y-%m-%d") if parsed.timestamp else "undated"
 
 
-def apply_template(template: str, parsed: ParsedName, camera: str, original: str) -> str:
-    """Render an output filename from a token template.
-
-    Tokens: {date} {time} {datetime} {camera} {seq} {ext} {original} {base}
-    Unknown tokens are left as-is. The extension is always appended if the
-    template doesn't already end with it.
-    """
+def _render(template: str, parsed: ParsedName, camera: str, original: str) -> str:
     ts = parsed.timestamp
     values = {
         "date": ts.strftime("%Y-%m-%d") if ts else "undated",
+        "year": ts.strftime("%Y") if ts else "undated",
+        "month": ts.strftime("%m") if ts else "undated",
+        "day": ts.strftime("%d") if ts else "undated",
+        "kind": parsed.kind,
         "time": ts.strftime("%H%M%S") if ts else "000000",
         "datetime": ts.strftime("%Y-%m-%d_%H%M%S") if ts else "undated",
         "camera": _sanitize(camera),
@@ -83,10 +83,26 @@ def apply_template(template: str, parsed: ParsedName, camera: str, original: str
     out = template
     for k, v in values.items():
         out = out.replace("{" + k + "}", str(v))
-    out = _sanitize(out, keep_seps=True)
+    return out
+
+
+def apply_template(template: str, parsed: ParsedName, camera: str, original: str) -> str:
+    """Render an output filename from a token template.
+
+    Tokens: {date} {year} {month} {day} {time} {datetime} {camera} {kind} {seq}
+    {ext} {original} {base}. Unknown tokens are left as-is. The extension is
+    always appended if the template doesn't already end with it.
+    """
+    out = _sanitize(_render(template, parsed, camera, original), keep_seps=True)
     if parsed.ext and not out.lower().endswith("." + parsed.ext.lower()):
         out = f"{out}.{parsed.ext.lower()}"
     return out
+
+
+def folder_parts(template: str, parsed: ParsedName, camera: str, original: str) -> list[str]:
+    """Render the folder layout template into sanitized path segments."""
+    rendered = _render(template, parsed, camera, original)
+    return [_sanitize(p) for p in re.split(r"[\\/]+", rendered) if p.strip(" .")]
 
 
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')

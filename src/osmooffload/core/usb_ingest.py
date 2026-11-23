@@ -131,9 +131,7 @@ class UsbIngester:
     def _dest_for(self, name: str) -> Path:
         parsed = naming.parse_name(name)
         out_name = naming.apply_template(self.cfg.template, parsed, self.cfg.camera_folder, name)
-        parts = [naming._sanitize(self.cfg.camera_folder), naming.date_folder(parsed)]
-        if self.cfg.split_kind_folders:
-            parts.append(parsed.kind)
+        parts = naming.folder_parts(self.cfg.folder_template, parsed, self.cfg.camera_folder, name)
         return self.cfg.base_dir.joinpath(*parts, out_name)
 
     def plan(self, vol: UsbVolume) -> list[tuple[UsbFile, Path, str | None]]:

@@ -114,3 +114,11 @@ def test_media_url_quoting():
         == "/v2?storage=1&path=DCIM/DJI_001/DJI_20260820143000_0012_D.MP4"
     )
     assert CameraHttp.media_url(0, "MISC/THM/100/th x.scr") == "/v2?storage=0&path=MISC/THM/100/th%20x.scr"
+
+
+def test_folder_layout():
+    p = naming.parse_name("DJI_20260727143000_0012_D.MP4")
+    assert naming.folder_parts("{year}/{month}-{day}", p, "cam", "x") == ["2026", "07-27"]
+    assert naming.folder_parts("{camera}\{date}/{kind}", p, "cam", "x") == ["cam", "2026-07-27", "video"]
+    assert naming.folder_parts("", p, "cam", "x") == []
+    assert naming.folder_parts("../{year}", p, "cam", "x") == ["2026"]
