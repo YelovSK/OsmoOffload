@@ -94,6 +94,7 @@ class CameraController(QObject):
 
     def _submit(self, coro) -> None:
         if self._busy:
+            coro.close()
             self.log_line.emit("Busy with another camera session.")
             return
         self._busy = True

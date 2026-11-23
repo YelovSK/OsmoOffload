@@ -155,6 +155,7 @@ class OsmoApp:
         busy = state in ("connecting", "almost", "transferring")
         w.card.set_busy(busy, transferring=(state == "transferring"))
         w.media.set_busy(busy)
+        w.btn_add_camera.setEnabled(not busy)
         # camera list dot: in-range while a session is live
         self._show_cameras(live=state in ("connecting", "connected", "transferring"))
         # the header must name the camera we are actually talking to, not
