@@ -35,16 +35,21 @@ PARAM_SUBS = [
 ]
 
 
-def _stores_complete(raw: bytes) -> bool:
-    """True once the internal-store query (sent last) has answered and every
-    answered store slice holds as many records as its manifest header says."""
-    if not mf.reassemble(raw, request_ctr=INTERNAL_QUERY_CTR):
+def _stores_complete(raw: bytes, expect_sd: bool) -> bool:
+    """True once the internal store (and the SD card, when the camera reports
+    one) has answered, every answered slice holds as many records as its
+    manifest header says, and there is at least one record."""
+    slices = {ctr: mf.reassemble(raw, request_ctr=ctr) for ctr in (SD_QUERY_CTR, INTERNAL_QUERY_CTR)}
+    if not slices[INTERNAL_QUERY_CTR] or (expect_sd and not slices[SD_QUERY_CTR]):
         return False
-    for ctr in (SD_QUERY_CTR, INTERNAL_QUERY_CTR):
-        buf = mf.reassemble(raw, request_ctr=ctr)
-        if buf and len(mf.decode(buf)) < mf.header_count(buf):
-            return False
-    return True
+    total = 0
+    for buf in slices.values():
+        if buf:
+            n = len(mf.decode(buf))
+            if n < mf.header_count(buf):
+                return False
+            total += n
+    return total > 0
 
 
 def list_cmd(ctr: int, cursor: int) -> bytes:
@@ -441,7 +446,7 @@ class CameraDatalink:
                     log.info("list: %d files (%.1fs, blob %d B)", count, now - t0, len(blob))
                     last_count = count
                     last_change = now
-                if _stores_complete(raw):
+                if _stores_complete(raw, expect_sd=bool(self.status.sd_total_mib)):
                     log.info("list complete per store headers after %.1fs", now - t0)
                     break
                 if count > 0 and now - last_change >= self.LIST_STABLE_S:

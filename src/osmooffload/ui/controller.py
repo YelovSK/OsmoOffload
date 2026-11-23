@@ -755,12 +755,17 @@ class CameraController(QObject):
 
         last_status = None
         candidates = [c for c in self._datalink_configs() for _ in (1, 2, 3)]
+        silent_ports: set[int] = set()
         for attempt, (port, poke) in enumerate(candidates, start=1):
+            if port in silent_ports:
+                continue
             dl = CameraDatalink(conn.CAMERA_IP, port=port, tcp_poke=poke,
                                 identifier=identifier, model_id=self._model_id())
             ok = False
             try:
                 if not dl.open():
+                    # no handshake reply at all: this body doesn't listen here
+                    silent_ports.add(port)
                     continue
                 dl.register()
                 dl.enter_playback()
