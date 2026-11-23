@@ -25,10 +25,8 @@ VECTORS = [
     ("550d0433024800a0800000017e", 0x02, 0x48, 0x80, 0x00, 0x00, ""),
 ]
 
-PAIRING_VECTOR = (
-    "553304c2020700a0400745203238346165356238643736623333373561303461"
-    "363431376164373162656133046f736d6f8c02"
-)
+# HCI snoop of the official app: identifier, token "1646", trailing 01 01
+PAIRING_PAYLOAD = "0f30303137383534333634393738353904313634360101"
 
 
 @pytest.mark.parametrize("hex_,sender,receiver,flags,cset,cid,pl", VECTORS)
@@ -56,8 +54,8 @@ def test_builder_matches_capture_getssid():
 
 
 def test_builder_matches_capture_pairing():
-    f = cmd.set_pairing_pin(0xA000, "284ae5b8d76b3375a04a6417ad71bea3", "osmo")
-    assert f.encode().hex() == PAIRING_VECTOR
+    f = cmd.set_pairing_pin(0xA000, "001785436497859")
+    assert f.payload.hex() == PAIRING_PAYLOAD
 
 
 def test_builder_matches_capture_session():
